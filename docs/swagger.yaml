@@ -1,0 +1,10 @@
+info:
+  contact: {}
+paths: {}
+securityDefinitions:
+  bearerToken:
+    description: Enter the token with the `Bearer ` prefix, e.g. "Bearer abcde12345"
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
