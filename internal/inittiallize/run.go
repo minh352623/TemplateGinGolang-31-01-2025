@@ -2,6 +2,7 @@ package inittiallize
 
 import (
 	"ecom/global"
+	"ecom/internal/wire"
 	"fmt"
 
 	"go.uber.org/zap"
@@ -14,13 +15,18 @@ func Run() {
 	fmt.Println("config database", global.Config.Postgres.Host, global.Config.Postgres.Port, global.Config.Postgres.User, global.Config.Postgres.DBName)
 	initLogger()
 	initSecurity()
-	initPostgres()
+	initPostgresC()
 	initPostgresSetting()
 	global.Logger.Info("hello world", zap.String("name", "John"))
 
 	initRedis()
-	// initRabbitMQ()
-
+	InitRabbitMQ()
+	consumeMessage, err := wire.InitializeConsumeHandler()
+	if err != nil {
+		global.Logger.Error("Failed to initialize consume message", zap.Error(err))
+		return
+	}
+	consumeMessage.RegisterConsumers()
 	// Start worker in a separate goroutine
 	// go func() {
 	// 	w := worker.NewWorker()

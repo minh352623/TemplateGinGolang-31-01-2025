@@ -1,185 +1,193 @@
 package messaging
 
 import (
-	"context"
-	"ecom/global"
-	consts "ecom/pkg/const"
-	"ecom/pkg/rabbitmq"
 	"encoding/json"
 	"fmt"
+	"log"
+	"net/http"
 	"strconv"
 	"strings"
 
+	"ecom/global"
+	"ecom/internal/database"
+	"ecom/internal/service"
+	"ecom/pkg/rabbitmq"
+
 	amqp "github.com/rabbitmq/amqp091-go"
-	"go.uber.org/zap"
 )
 
-// EventHandler is a function that processes an event and returns a response
-type EventHandler func(ctx context.Context, event *Event) (interface{}, error)
-
-// MessageCallback is a function called when a message is received or processed
-type MessageCallback func()
-
-// patternHandler holds a pattern and its corresponding handler
-type patternHandler struct {
-	pattern string
-	handler EventHandler
+type ConsumeMessage struct {
+	rabbitMQManager *rabbitmq.QueueManager
+	testService     service.ITestService
 }
 
-// ConsumerService manages message consumers
-type ConsumerService struct {
-	consumer        *rabbitmq.Consumer
-	logger          *zap.Logger
-	eventHandlers   map[EventType]EventHandler
-	patternHandlers []patternHandler
-}
-
-// NewConsumerService creates a new consumer service
-func NewConsumerService() *ConsumerService {
-	consumer := rabbitmq.NewConsumer(global.RabbitMQ, global.Logger.GetZapLogger())
-	return &ConsumerService{
-		consumer:        consumer,
-		logger:          global.Logger.GetZapLogger(),
-		eventHandlers:   make(map[EventType]EventHandler),
-		patternHandlers: make([]patternHandler, 0),
+func NewConsumeMessage(
+	testService service.ITestService,
+) *ConsumeMessage {
+	return &ConsumeMessage{
+		rabbitMQManager: global.RabbitMQManager,
+		testService:     testService,
 	}
 }
 
-// RegisterEventHandler registers a handler for a specific event type
-func (s *ConsumerService) RegisterEventHandler(eventType EventType, handler EventHandler) {
-	s.eventHandlers[eventType] = handler
-}
-
-// RegisterEventHandlerWithPattern registers a handler for event types matching a pattern
-func (s *ConsumerService) RegisterEventHandlerWithPattern(pattern string, handler EventHandler) {
-	// Store the pattern and handler in a map
-	s.patternHandlers = append(s.patternHandlers, patternHandler{
-		pattern: pattern,
-		handler: handler,
-	})
-}
-
-// StartConsumer starts a consumer for the given queue and binding keys
-func (s *ConsumerService) StartConsumer(
-	ctx context.Context,
-	queueName string,
-	bindingKeys []string,
-	consumerName string,
-	onMessageReceived MessageCallback,
-	onMessageProcessed MessageCallback,
-) error {
-	// Declare queue
-	queue, err := global.RabbitMQ.DeclareQueue(queueName, true, false, false, false, nil)
+func (c *ConsumeMessage) marshalBody(response rabbitmq.QueueResponse) []byte {
+	jsonResponse, err := json.Marshal(response)
 	if err != nil {
-		return fmt.Errorf("failed to declare queue: %w", err)
+		log.Printf("Failed to marshal response: %v\n", err)
+		return []byte("{}")
 	}
-
-	// Bind queue to consistent hash exchange with weight
-	weight, _ := strconv.Atoi(bindingKeys[0]) // Assuming bindingKeys[0] contains the consumer number
-	err = global.RabbitMQ.BindQueueWithWeight(queue.Name, consts.HashedExchangeName, weight)
-	if err != nil {
-		return fmt.Errorf("failed to bind queue with weight: %w", err)
-	}
-
-	// Create a message handler that tracks message processing
-	messageHandler := func(ctx context.Context, delivery amqp.Delivery) error {
-		// Call the onMessageReceived callback if provided
-		if onMessageReceived != nil {
-			onMessageReceived()
-		}
-
-		// Process the message
-		err := s.handleMessage(ctx, delivery)
-
-		// Call the onMessageProcessed callback if provided
-		if onMessageProcessed != nil {
-			onMessageProcessed()
-		}
-
-		return err
-	}
-
-	// Start consuming
-	err = s.consumer.Consume(ctx, queue.Name, consumerName, messageHandler)
-	if err != nil {
-		return fmt.Errorf("failed to start consumer: %w", err)
-	}
-
-	s.logger.Info("Started consumer",
-		zap.String("queue", queueName),
-		zap.String("consumer", consumerName),
-		zap.Strings("binding_keys", bindingKeys))
-	return nil
+	return jsonResponse
 }
 
-// handleMessage handles incoming messages
-func (s *ConsumerService) handleMessage(ctx context.Context, delivery amqp.Delivery) error {
-	// Parse the event
-	var event Event
-	if err := json.Unmarshal(delivery.Body, &event); err != nil {
-		return fmt.Errorf("failed to unmarshal event: %w", err)
+type BodyMessage struct {
+	Data   interface{} `json:"data"`
+	Action string      `json:"action"`
+	UserID string      `json:"user_id"`
+}
+
+func (c *ConsumeMessage) RegisterConsumers() {
+	fmt.Println("RegisterConsumers")
+	// Order Queue Consumer
+	number := strings.Split(global.Config.Queue.Test, ":")[1]
+	name := strings.Split(global.Config.Queue.Test, ":")[0]
+	numberInt, err := strconv.Atoi(number)
+	if err != nil {
+		log.Printf("Failed to convert number to int: %v\n", err)
+		return
 	}
-
-	// Get the event type
-	eventType := event.Type
-
-	// Log the received event
-	s.logger.Info("Received event",
-		zap.String("event_type", string(eventType)),
-		zap.Any("payload", event.Payload))
-
-	var response interface{}
-	var err error
-
-	// Find and execute the handler
-	if handler, exists := s.eventHandlers[eventType]; exists {
-		response, err = handler(ctx, &event)
-	} else {
-		// Check pattern handlers
-		eventTypeStr := string(eventType)
-		for _, ph := range s.patternHandlers {
-			if strings.HasPrefix(eventTypeStr, ph.pattern[:len(ph.pattern)-1]) {
-				response, err = ph.handler(ctx, &event)
-				break
+	for i := 0; i < numberInt; i++ {
+		queue := fmt.Sprintf("%s:%d", name, i)
+		fmt.Println("queue", queue)
+		err := c.rabbitMQManager.Consume(queue, func(msg amqp.Delivery) {
+			fmt.Println("Received message:", string(msg.Body))
+			body := BodyMessage{}
+			err := json.Unmarshal(msg.Body, &body)
+			if err != nil {
+				log.Printf("Failed to unmarshal body: %v\n", err)
+				c.sendResponse(msg, rabbitmq.QueueResponse{
+					CodeResult: http.StatusBadRequest,
+					Data:       nil,
+					Error:      "Failed to parse message body",
+				})
+				return
 			}
+			fmt.Println("Body:", body)
+			var response rabbitmq.QueueResponse
+
+			switch body.Action {
+			case "create":
+				// Convert the data map to JSON bytes
+				dataBytes, err := json.Marshal(body.Data)
+				if err != nil {
+					response.CodeResult = http.StatusBadRequest
+					response.Data = nil
+					response.Error = err.Error()
+					c.sendResponse(msg, response)
+					return
+				}
+
+				var req database.CreateTestParams
+				err = json.Unmarshal(dataBytes, &req)
+				if err != nil {
+					response.CodeResult = http.StatusBadRequest
+					response.Data = nil
+					response.Error = err.Error()
+					c.sendResponse(msg, response)
+					return
+				}
+
+				test, err := c.testService.CreateTest(&req)
+				if err != nil {
+					response.CodeResult = http.StatusBadRequest
+					response.Data = nil
+					response.Error = err.Error()
+					c.sendResponse(msg, response)
+					return
+				}
+
+				jsonResponse, err := json.Marshal(test)
+				if err != nil {
+					response.CodeResult = http.StatusBadRequest
+					response.Data = nil
+					response.Error = err.Error()
+					c.sendResponse(msg, response)
+					return
+				}
+
+				response.CodeResult = http.StatusOK
+				response.Data = &jsonResponse
+				c.sendResponse(msg, response)
+				break
+			case "update":
+				// Convert the data map to JSON bytes
+				dataBytes, err := json.Marshal(body.Data)
+				if err != nil {
+					response.CodeResult = http.StatusBadRequest
+					response.Data = nil
+					response.Error = err.Error()
+					c.sendResponse(msg, response)
+					return
+				}
+
+				var req database.UpdateTestParams
+				err = json.Unmarshal(dataBytes, &req)
+				if err != nil {
+					response.CodeResult = http.StatusBadRequest
+					response.Data = nil
+					response.Error = err.Error()
+					c.sendResponse(msg, response)
+					return
+				}
+
+				test, err := c.testService.UpdateTest(&req)
+				if err != nil {
+					response.CodeResult = http.StatusBadRequest
+					response.Data = nil
+					response.Error = err.Error()
+					c.sendResponse(msg, response)
+					return
+				}
+
+				jsonResponse, err := json.Marshal(test)
+				if err != nil {
+					response.CodeResult = http.StatusBadRequest
+					response.Data = nil
+					response.Error = err.Error()
+					c.sendResponse(msg, response)
+					return
+				}
+
+				response.CodeResult = http.StatusOK
+				response.Data = &jsonResponse
+				c.sendResponse(msg, response)
+				break
+			default:
+				log.Printf("Unknown action in routing key: %s\n", body.Action)
+				response.CodeResult = http.StatusBadRequest
+				response.Data = nil
+				response.Error = "Unknown action"
+				c.sendResponse(msg, response)
+			}
+		})
+		if err != nil {
+			fmt.Println("Failed to consume from log_queue:", err)
 		}
 	}
+}
 
-	// If there's a reply-to queue, send the response
-	if delivery.ReplyTo != "" {
-		var errStr string
-		if err != nil {
-			errStr = err.Error()
-		}
-
-		responseData := map[string]interface{}{
-			"success": err == nil,
-			"data":    response,
-			"error":   errStr,
-		}
-
-		responseBytes, err := json.Marshal(responseData)
-		if err != nil {
-			return fmt.Errorf("failed to marshal response: %w", err)
-		}
-
-		// Publish response using default exchange and reply-to queue as routing key
-		err = global.RabbitMQ.PublishMessage(
-			ctx,
-			"",               // use default exchange
-			delivery.ReplyTo, // use reply-to queue as routing key
-			false,            // mandatory
-			false,            // immediate
+// Helper function to send response
+func (c *ConsumeMessage) sendResponse(msg amqp.Delivery, response rabbitmq.QueueResponse) {
+	if msg.ReplyTo != "" {
+		c.rabbitMQManager.Channel.Publish(
+			"",
+			msg.ReplyTo,
+			false,
+			false,
 			amqp.Publishing{
-				ContentType:   "application/json",
-				Body:          responseBytes,
-				CorrelationId: delivery.CorrelationId, // Important: send back the same correlation ID
+				ContentType:   "text/plain",
+				CorrelationId: msg.CorrelationId,
+				Body:          c.marshalBody(response),
 			},
 		)
-		if err != nil {
-			return fmt.Errorf("failed to publish response: %w", err)
-		}
 	}
-
-	return err
 }
