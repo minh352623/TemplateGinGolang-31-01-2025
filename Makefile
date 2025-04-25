@@ -1,5 +1,5 @@
 
-GOOSE_MIGRATION_DIR ?= sql/schema
+GOOSE_MIGRATION_DIR ?= sql/schema/core
 GOOSE_DBSTRING = "postgres://dev:OEOOMYb3rpZv3xr2aUOzmC9b135@viaduct.proxy.rlwy.net:21434/fortune_vault"
 
 APP_NAME = server

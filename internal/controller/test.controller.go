@@ -6,6 +6,7 @@ import (
 	"ecom/internal/database"
 	"ecom/internal/messaging"
 	"ecom/internal/service"
+	"ecom/pkg/response"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -37,7 +38,7 @@ func (c *TestController) GetTestById(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get test"})
 		return
 	}
-	ctx.JSON(http.StatusOK, gin.H{"data": test})
+	response.SuccessResponse(ctx, 200, test)
 }
 
 // test update

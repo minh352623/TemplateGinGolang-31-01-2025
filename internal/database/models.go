@@ -10,6 +10,12 @@ import (
 	"github.com/google/uuid"
 )
 
+type Balance struct {
+	ID      int32
+	UserID  int32
+	Balance int32
+}
+
 type Test struct {
 	ID      uuid.UUID
 	Name    string

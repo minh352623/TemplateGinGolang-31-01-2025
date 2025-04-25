@@ -17,8 +17,7 @@ func Run() {
 	initSecurity()
 	initPostgresC()
 	initPostgresSetting()
-	global.Logger.Info("hello world", zap.String("name", "John"))
-
+	InitServiceInterface()
 	initRedis()
 	InitRabbitMQ()
 	consumeMessage, err := wire.InitializeConsumeHandler()
