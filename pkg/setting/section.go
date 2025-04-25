@@ -10,6 +10,8 @@ type Config struct {
 	Cronjob         CronjobSetting        `mapstructure:"cronjob"`
 	TokenValidation TokenValidationConfig `mapstructure:"token_validation"`
 	Redis           RedisSetting          `mapstructure:"redis"`
+	Exchange        ExchangeSetting       `mapstructure:"exchange"`
+	Queue           QueueSetting          `mapstructure:"queue"`
 }
 
 type RedisSetting struct {
@@ -85,4 +87,12 @@ type TokenValidationConfig struct {
 	ClientID string `mapstructure:"client_id"`
 	URL      string `mapstructure:"url"`
 	XApiKey  string `mapstructure:"x_api_key"`
+}
+
+type ExchangeSetting struct {
+	Test string `mapstructure:"test"`
+}
+
+type QueueSetting struct {
+	Test string `mapstructure:"test"`
 }

@@ -31,7 +31,7 @@ func InitRouter() *gin.Engine {
 	// middleware
 	// r.Use(middlewares.AuthMiddleware())
 	depositRouter := routers.RouterGroupApp.Deposit
-
+	testRouter := routers.RouterGroupApp.Test
 	MainGroup := r.Group("v1/api")
 	{
 		MainGroup.GET("checkStatus", func(ctx *gin.Context) {
@@ -40,6 +40,7 @@ func InitRouter() *gin.Engine {
 	}
 	{
 		depositRouter.InitDepositRouter(MainGroup)
+		testRouter.InitTestRouter(MainGroup)
 	}
 
 	return r

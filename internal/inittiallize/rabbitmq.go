@@ -2,55 +2,47 @@ package inittiallize
 
 import (
 	"ecom/global"
-	consts "ecom/pkg/const"
 	"ecom/pkg/rabbitmq"
+	"fmt"
 
+	amqp "github.com/rabbitmq/amqp091-go"
 	"go.uber.org/zap"
 )
 
-func initRabbitMQ() {
-	config := rabbitmq.Config{
-		Host:     global.Config.RabbitMQ.Host,
-		Port:     global.Config.RabbitMQ.Port,
-		User:     global.Config.RabbitMQ.User,
-		Password: global.Config.RabbitMQ.Password,
-		VHost:    global.Config.RabbitMQ.VHost,
-	}
-
-	global.Logger.Info("Initializing RabbitMQ", zap.Any("config", config))
-
-	rmq, err := rabbitmq.NewRabbitMQ(config, global.Logger.GetZapLogger())
+func InitRabbitMQ() {
+	connectUrl := fmt.Sprintf("amqp://%s:%s@%s:%d/", global.Config.RabbitMQ.User, global.Config.RabbitMQ.Password, global.Config.RabbitMQ.Host, global.Config.RabbitMQ.Port)
+	fmt.Println("connectUrl", connectUrl)
+	conn, err := amqp.Dial(connectUrl)
 	if err != nil {
-		global.Logger.Fatal("Failed to initialize RabbitMQ", zap.Error(err))
+		global.Logger.Error("Failed to connect to RabbitMQ", zap.Error(err))
+		panic(err)
 	}
 
-	// Declare default exchange
-	err = rmq.DeclareExchange("ecom.events", "topic", true, false)
+	channel, err := conn.Channel()
 	if err != nil {
-		global.Logger.Fatal("Failed to declare exchange", zap.Error(err))
+		global.Logger.Error("Failed to open a channel", zap.Error(err))
+		panic(err)
 	}
 
-	// Declare consistent hash exchange
-	err = rmq.DeclareConsistentHashExchange(consts.HashedExchangeName)
+	global.RabbitMQManager = &rabbitmq.QueueManager{
+		Conn:    conn,
+		Channel: channel,
+		Queues:  make(map[string]amqp.Queue),
+	}
+
+	// Declare exchange
+	global.RabbitMQManager.DeclareExchange(global.Config.Exchange.Test, "x-consistent-hash")
+
+	// Declare queues
+	global.RabbitMQManager.DeclareQueue(global.Config.Queue.Test)
+
+	// Bind queues to exchange
+	err = global.RabbitMQManager.BindQueue(global.Config.Queue.Test, global.Config.Exchange.Test)
 	if err != nil {
-		global.Logger.Fatal("Failed to declare consistent hash exchange", zap.Error(err))
+		global.Logger.Error("Failed to bind queue to exchange", zap.Error(err))
+		panic(err)
 	}
 
-	// Create producer
-	producer := rabbitmq.NewProducer(rmq)
+	fmt.Println("Connected to RabbitMQ successfully")
 
-	// Store in global for access throughout the application
-	global.RabbitMQ = rmq
-	global.RabbitMQProducer = producer
-
-	// Create queues with binding weights
-	// queue, err := rmq.DeclareQueue("sync_queue", true, false, false, false, nil)
-
-	// // Bind with weight
-	// err = rmq.BindQueue(queue.Name, "1", consts.HashedExchangeName)
-	// if err != nil {
-	// 	global.Logger.Fatal("Failed to bind queue", zap.Error(err))
-	// }
-
-	global.Logger.Info("RabbitMQ initialized successfully")
 }

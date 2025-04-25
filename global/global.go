@@ -1,6 +1,7 @@
 package global
 
 import (
+	"database/sql"
 	"ecom/pkg/logger"
 	"ecom/pkg/rabbitmq"
 	"ecom/pkg/security"
@@ -11,14 +12,14 @@ import (
 )
 
 var (
-	Config           setting.Config
-	Logger           *logger.LoggerZap
-	Pdb              *gorm.DB
-	PdbSetting       *gorm.DB
-	Rdb              *redis.Client
-	ServerSetting    *setting.ServerSetting
-	SecuritySetting  *setting.SecuritySetting
-	SecurityService  *security.SecurityService
-	RabbitMQ         *rabbitmq.RabbitMQ
-	RabbitMQProducer *rabbitmq.Producer
+	Config          setting.Config
+	Logger          *logger.LoggerZap
+	Pdb             *gorm.DB
+	Pdbc            *sql.DB
+	PdbSetting      *gorm.DB
+	Rdb             *redis.Client
+	ServerSetting   *setting.ServerSetting
+	SecuritySetting *setting.SecuritySetting
+	SecurityService *security.SecurityService
+	RabbitMQManager *rabbitmq.QueueManager
 )
