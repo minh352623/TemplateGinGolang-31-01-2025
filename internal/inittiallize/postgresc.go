@@ -8,15 +8,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-	"go.uber.org/zap"
 )
-
-func checkErrorPanicC(err error, errString string) {
-	if err != nil {
-		global.Logger.Error(errString, zap.Error(err))
-		panic(err)
-	}
-}
 
 func initPostgresC() {
 	p := global.Config.Postgres

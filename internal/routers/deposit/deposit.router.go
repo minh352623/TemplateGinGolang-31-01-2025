@@ -1,8 +1,8 @@
 package deposit
 
 import (
+	controller "ecom/internal/controller/deposit"
 	"ecom/internal/middlewares"
-	"ecom/internal/wire"
 
 	"github.com/gin-gonic/gin"
 )
@@ -10,15 +10,9 @@ import (
 type DepositRouter struct{}
 
 func (u *DepositRouter) InitDepositRouter(Router *gin.RouterGroup) {
-	depositController, err := wire.InitializeDepositHandler()
-	if err != nil {
-		panic(err)
-	}
-
 	depositRouterPrivate := Router.Group("/deposit")
 	depositRouterPrivate.Use(middlewares.AuthMiddleware())
 	{
-		// depositRouterPrivate.POST("", depositController.Deposit)
-		depositRouterPrivate.POST("/test", depositController.Test)
+		depositRouterPrivate.POST("/:id", controller.Deposit.ProcessDeposit)
 	}
 }

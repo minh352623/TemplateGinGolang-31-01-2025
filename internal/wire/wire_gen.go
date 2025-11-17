@@ -7,35 +7,13 @@
 package wire
 
 import (
-	"ecom/internal/controller"
 	"ecom/internal/messaging"
-	"ecom/internal/repo"
-	"ecom/internal/service"
 )
 
 // Injectors from consume.go:
 
 func InitializeConsumeHandler() (*messaging.ConsumeMessage, error) {
-	iTestRepository := repo.NewTestRepository()
-	iTestService := service.NewTestService(iTestRepository)
-	consumeMessage := messaging.NewConsumeMessage(iTestService)
+	consumeMessage := messaging.NewConsumeMessage()
 	return consumeMessage, nil
 }
 
-// Injectors from deposit.wire.go:
-
-func InitializeDepositHandler() (*controller.DepositController, error) {
-	iCycleRepository := repo.NewCycleRepository()
-	iDepositService := service.NewDepositService(iCycleRepository)
-	depositController := controller.NewDepositController(iDepositService)
-	return depositController, nil
-}
-
-// Injectors from test.wire.go:
-
-func InitializeTestControllerHandler() (*controller.TestController, error) {
-	iTestRepository := repo.NewTestRepository()
-	iTestService := service.NewTestService(iTestRepository)
-	testController := controller.NewTestController(iTestService)
-	return testController, nil
-}

@@ -19,7 +19,7 @@ func checkErrorPanic(err error, errString string) {
 	}
 }
 
-func initPostgres() {
+func InitPostgres() {
 	p := global.Config.Postgres
 	// Check if the port is a string, and convert it to int
 	port, err := strconv.Atoi(p.Port)

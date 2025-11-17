@@ -1,6 +1,7 @@
 package messaging
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -10,7 +11,8 @@ import (
 
 	"ecom/global"
 	"ecom/internal/database"
-	"ecom/internal/service"
+	"ecom/internal/service/deposit"
+	"ecom/internal/service/deposit/types"
 	"ecom/pkg/rabbitmq"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -18,15 +20,11 @@ import (
 
 type ConsumeMessage struct {
 	rabbitMQManager *rabbitmq.QueueManager
-	testService     service.ITestService
 }
 
-func NewConsumeMessage(
-	testService service.ITestService,
-) *ConsumeMessage {
+func NewConsumeMessage() *ConsumeMessage {
 	return &ConsumeMessage{
 		rabbitMQManager: global.RabbitMQManager,
-		testService:     testService,
 	}
 }
 
@@ -96,7 +94,9 @@ func (c *ConsumeMessage) RegisterConsumers() {
 					return
 				}
 
-				test, err := c.testService.CreateTest(&req)
+				test, err := deposit.DepositHandler().ProcessDeposit(context.Background(), &types.Deposit{
+					ID: req.ID.String(),
+				})
 				if err != nil {
 					response.CodeResult = http.StatusBadRequest
 					response.Data = nil
@@ -139,7 +139,9 @@ func (c *ConsumeMessage) RegisterConsumers() {
 					return
 				}
 
-				test, err := c.testService.UpdateTest(&req)
+				test, err := deposit.DepositHandler().ProcessDeposit(context.Background(), &types.Deposit{
+					ID: req.ID.String(),
+				})
 				if err != nil {
 					response.CodeResult = http.StatusBadRequest
 					response.Data = nil

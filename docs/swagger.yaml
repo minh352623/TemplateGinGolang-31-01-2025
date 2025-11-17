@@ -1,6 +1,46 @@
+definitions:
+  types.Deposit:
+    properties:
+      amount:
+        type: number
+      currency:
+        type: string
+      date_created:
+        type: string
+      date_updated:
+        type: string
+      id:
+        type: string
+      status:
+        type: string
+    type: object
 info:
   contact: {}
-paths: {}
+paths:
+  /deposit/{id}:
+    post:
+      consumes:
+      - application/json
+      description: Process Deposit
+      parameters:
+      - description: ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.Deposit'
+      security:
+      - bearerAuth: []
+      - bearerToken: []
+      summary: Process Deposit
+      tags:
+      - Deposit
 securityDefinitions:
   bearerToken:
     description: Enter the token with the `Bearer ` prefix, e.g. "Bearer abcde12345"
